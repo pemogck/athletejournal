@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import type { ActivityType, BodyFeel, Sport } from '@/types'
+import type { BodyFeel } from '@/types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -78,24 +78,42 @@ export async function updateProfile(formData: FormData) {
 
 export interface EntryFormData {
   entry_date: string
-  sport: Sport
-  activity_type: ActivityType
-  minutes: number
   effort: number
   confidence: number
-  body_feel: BodyFeel
+  energy: number
+  body_feel_after: BodyFeel | ''
   win_today: string
   lesson_today: string
   tomorrow_focus: string
 }
 
-function validateEntry(data: EntryFormData): string | null {
-  if (!data.sport) return 'Sport is required'
-  if (!data.activity_type) return 'Activity type is required'
-  if (!data.minutes || data.minutes < 1 || data.minutes > 600) return 'Minutes must be between 1 and 600'
+interface SportRow {
+  sport: string
+  minutes: number
+}
+
+function parseSports(formData: FormData): SportRow[] {
+  const count = Number(formData.get('sport_count')) || 0
+  const sports: SportRow[] = []
+  for (let i = 0; i < count; i++) {
+    const sport = (formData.get(`sport_${i}`) as string || '').trim()
+    const minutes = Number(formData.get(`minutes_${i}`))
+    if (sport && minutes > 0) {
+      sports.push({ sport, minutes })
+    }
+  }
+  return sports
+}
+
+function validateEntry(data: EntryFormData, sports: SportRow[]): string | null {
+  if (sports.length === 0) return 'At least one sport is required'
+  for (const s of sports) {
+    if (!s.sport) return 'Sport is required'
+    if (!s.minutes || s.minutes < 1 || s.minutes > 600) return 'Minutes must be between 1 and 600'
+  }
   if (!data.effort || data.effort < 1 || data.effort > 5) return 'Effort must be 1–5'
   if (!data.confidence || data.confidence < 1 || data.confidence > 5) return 'Confidence must be 1–5'
-  if (!data.body_feel) return 'Body feel is required'
+  if (!data.energy || data.energy < 1 || data.energy > 5) return 'Energy must be 1–5'
   if (data.win_today.length > 140) return 'Win Today must be 140 characters or less'
   if (data.lesson_today.length > 140) return 'Lesson Today must be 140 characters or less'
   if (data.tomorrow_focus.length > 140) return 'Tomorrow Focus must be 140 characters or less'
@@ -107,35 +125,70 @@ export async function upsertEntry(entryId: string | null, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const sports = parseSports(formData)
+
   const data: EntryFormData = {
     entry_date: formData.get('entry_date') as string,
-    sport: formData.get('sport') as Sport,
-    activity_type: formData.get('activity_type') as ActivityType,
-    minutes: Number(formData.get('minutes')),
     effort: Number(formData.get('effort')),
     confidence: Number(formData.get('confidence')),
-    body_feel: formData.get('body_feel') as BodyFeel,
+    energy: Number(formData.get('energy')),
+    body_feel_after: (formData.get('body_feel_after') as BodyFeel) || '',
     win_today: (formData.get('win_today') as string) || '',
     lesson_today: (formData.get('lesson_today') as string) || '',
     tomorrow_focus: (formData.get('tomorrow_focus') as string) || '',
   }
 
-  const validationError = validateEntry(data)
+  const validationError = validateEntry(data, sports)
   if (validationError) return { error: validationError }
+
+  const entryPayload = {
+    entry_date: data.entry_date,
+    effort: data.effort,
+    confidence: data.confidence,
+    energy: data.energy,
+    body_feel_after: data.body_feel_after || null,
+    win_today: data.win_today,
+    lesson_today: data.lesson_today,
+    tomorrow_focus: data.tomorrow_focus,
+  }
+
+  let resolvedEntryId = entryId
 
   if (entryId) {
     const { error } = await supabase
       .from('journal_entries')
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update({ ...entryPayload, updated_at: new Date().toISOString() })
       .eq('id', entryId)
       .eq('user_id', user.id)
     if (error) return { error: error.message }
   } else {
-    const { error } = await supabase
+    const { data: newEntry, error } = await supabase
       .from('journal_entries')
-      .insert({ ...data, user_id: user.id })
+      .insert({ ...entryPayload, user_id: user.id })
+      .select('id')
+      .single()
     if (error) return { error: error.message }
+    resolvedEntryId = newEntry.id
   }
+
+  // Replace all sports for this entry
+  const { error: delError } = await supabase
+    .from('entry_sports')
+    .delete()
+    .eq('entry_id', resolvedEntryId)
+  if (delError) return { error: delError.message }
+
+  const sportsRows = sports.map(s => ({
+    entry_id: resolvedEntryId,
+    user_id: user.id,
+    sport: s.sport,
+    minutes: s.minutes,
+  }))
+
+  const { error: sportError } = await supabase
+    .from('entry_sports')
+    .insert(sportsRows)
+  if (sportError) return { error: sportError.message }
 
   revalidatePath('/')
   revalidatePath('/log')
@@ -148,6 +201,7 @@ export async function deleteEntry(entryId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  // entry_sports rows are deleted via ON DELETE CASCADE
   const { error } = await supabase
     .from('journal_entries')
     .delete()

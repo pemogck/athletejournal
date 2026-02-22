@@ -279,6 +279,108 @@ body {
   gap: 10px;
 }
 
+.rating-scale {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Multi-sport entry ── */
+.sport-entry {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.sport-entry-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.sport-entry-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Minutes chip picker ── */
+.minutes-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.minutes-chip {
+  flex: 1;
+  min-width: 52px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 12px 6px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.minutes-chip:active {
+  transform: scale(0.95);
+}
+
+.minutes-chip.selected {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.sport-remove-btn {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  color: var(--danger);
+  border-radius: 8px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.sport-remove-btn:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.add-sport-btn {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--green);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.add-sport-btn:hover {
+  border-color: var(--green);
+  background: var(--green-dim);
+}
+
 .rating-btn {
   flex: 1;
   background: var(--bg3);

@@ -27,18 +27,36 @@ export default async function StatsPage() {
   const sevenDaysAgo = subDays(6)
 
   const [weeklyRes, sportRes, recentRes] = await Promise.all([
-    supabase.from('journal_entries').select('entry_date, minutes')
-      .eq('user_id', user.id).gte('entry_date', eightWeeksAgo),
-    supabase.from('journal_entries').select('sport, minutes')
-      .eq('user_id', user.id).gte('entry_date', thirtyDaysAgo),
+    // Weekly minutes: sum entry_sports per entry
+    supabase.from('journal_entries')
+      .select('entry_date, entry_sports(minutes)')
+      .eq('user_id', user.id)
+      .gte('entry_date', eightWeeksAgo),
+    // Sport breakdown: all sports in last 30 days
+    supabase.from('journal_entries')
+      .select('entry_sports(sport, minutes)')
+      .eq('user_id', user.id)
+      .gte('entry_date', thirtyDaysAgo),
     supabase.from('journal_entries').select('effort, confidence, entry_date')
       .eq('user_id', user.id).gte('entry_date', sevenDaysAgo),
   ])
 
+  // Flatten nested entry_sports into { entry_date, minutes }[]
+  type WeeklyRaw = { entry_date: string; entry_sports: { minutes: number }[] | null }
+  const weeklyEntries = ((weeklyRes.data || []) as WeeklyRaw[]).flatMap(e =>
+    (e.entry_sports || []).map(s => ({ entry_date: e.entry_date, minutes: s.minutes }))
+  )
+
+  // Flatten nested entry_sports into { sport, minutes }[]
+  type SportRaw = { entry_sports: { sport: string; minutes: number }[] | null }
+  const sportEntries = ((sportRes.data || []) as SportRaw[]).flatMap(e =>
+    (e.entry_sports || []).map(s => ({ sport: s.sport, minutes: s.minutes }))
+  )
+
   return (
     <StatsCharts
-      weeklyEntries={weeklyRes.data || []}
-      sportEntries={sportRes.data || []}
+      weeklyEntries={weeklyEntries}
+      sportEntries={sportEntries}
       recentEntries={(recentRes.data || []) as Pick<JournalEntry, 'effort' | 'confidence' | 'entry_date'>[]}
     />
   )

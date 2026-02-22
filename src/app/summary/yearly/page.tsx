@@ -3,11 +3,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { longestStreak } from '@/lib/dates'
 import { generateYearlyInsights } from '@/lib/insights'
-import type { JournalEntry } from '@/types'
+import type { JournalEntry, EntrySport } from '@/types'
 
 interface Props {
   searchParams: Promise<{ year?: string }>
 }
+
+type EntryWithSports = JournalEntry & { entry_sports: EntrySport[] }
 
 export default async function YearlySummaryPage({ searchParams }: Props) {
   const supabase = await createClient()
@@ -18,30 +20,39 @@ export default async function YearlySummaryPage({ searchParams }: Props) {
   const year = params.year || String(new Date().getFullYear())
   const numYear = parseInt(year)
 
-  const { data: entries } = await supabase
-    .from('journal_entries').select('*')
+  const { data: entriesData } = await supabase
+    .from('journal_entries')
+    .select('*, entry_sports(sport, minutes)')
     .eq('user_id', user.id)
     .gte('entry_date', `${year}-01-01`)
     .lte('entry_date', `${year}-12-31`)
     .order('entry_date')
 
-  const all: JournalEntry[] = entries || []
-  const totalMins = all.reduce((s, e) => s + e.minutes, 0)
+  const all = (entriesData || []) as EntryWithSports[]
+
+  // Compute stats from entry_sports
+  const totalMins = all.reduce((s, e) =>
+    s + (e.entry_sports || []).reduce((es, sp) => es + sp.minutes, 0), 0)
   const hours = Math.floor(totalMins / 60)
   const daysLogged = new Set(all.map(e => e.entry_date)).size
   const streak = longestStreak(all.map(e => e.entry_date))
-  const sports = new Set(all.map(e => e.sport))
   const avgEffort = all.length ? all.reduce((s, e) => s + e.effort, 0) / all.length : 0
   const avgConf = all.length ? all.reduce((s, e) => s + e.confidence, 0) / all.length : 0
-  const gameCount = all.filter(e => e.activity_type === 'Game').length
-  const sorenessCount = all.filter(e => e.body_feel === 'Sore' || e.body_feel === 'Hurt').length
+  const sorenessCount = all.filter(e => e.body_feel_before === 'Sore' || e.body_feel_before === 'Hurt').length
 
-  // Most active sport
+  // Sport stats from entry_sports
   const sportMins: Record<string, number> = {}
-  for (const e of all) sportMins[e.sport] = (sportMins[e.sport] || 0) + e.minutes
+  const sportSet = new Set<string>()
+  for (const e of all) {
+    for (const sp of e.entry_sports || []) {
+      sportMins[sp.sport] = (sportMins[sp.sport] || 0) + sp.minutes
+      sportSet.add(sp.sport)
+    }
+  }
   const mostActiveSport = Object.entries(sportMins).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
+  const sportsCount = sportSet.size
 
-  const insights = generateYearlyInsights(all)
+  const insights = generateYearlyInsights(all, totalMins, sportsCount)
   const currentYear = new Date().getFullYear()
 
   return (
@@ -85,23 +96,12 @@ export default async function YearlySummaryPage({ searchParams }: Props) {
 
           <div className="stats-row">
             <div className="stat-card">
-              <div className="card-label">📅 Days Logged</div>
-              <div className="card-value" style={{ fontSize: 32 }}>{daysLogged}</div>
+              <div className="card-label">🎽 Sports Played</div>
+              <div className="card-value" style={{ fontSize: 32 }}>{sportsCount}</div>
             </div>
             <div className="stat-card">
               <div className="card-label">🔥 Best Streak</div>
               <div className="card-value" style={{ fontSize: 32 }}>{streak}<span className="card-unit">d</span></div>
-            </div>
-          </div>
-
-          <div className="stats-row">
-            <div className="stat-card">
-              <div className="card-label">🎽 Sports Played</div>
-              <div className="card-value" style={{ fontSize: 32 }}>{sports.size}</div>
-            </div>
-            <div className="stat-card">
-              <div className="card-label">🏆 Games Played</div>
-              <div className="card-value" style={{ fontSize: 32 }}>{gameCount}</div>
             </div>
           </div>
 

@@ -1,23 +1,25 @@
 import type { JournalEntry } from '@/types'
 
-export function generateMonthlyInsights(entries: JournalEntry[]): string[] {
+export function generateMonthlyInsights(
+  entries: JournalEntry[],
+  totalMinutes?: number,
+): string[] {
   if (!entries.length) return ["No entries this month yet. Start logging to see insights!"]
 
   const insights: string[] = []
-  const totalMinutes = entries.reduce((s, e) => s + e.minutes, 0)
+  const total = totalMinutes ?? entries.reduce((s, e) => s + (e.minutes ?? 0), 0)
   const avgEffort = entries.reduce((s, e) => s + e.effort, 0) / entries.length
   const avgConf = entries.reduce((s, e) => s + e.confidence, 0) / entries.length
-  const sorenessCount = entries.filter(e => e.body_feel === 'Sore' || e.body_feel === 'Hurt').length
-  const greatDays = entries.filter(e => e.body_feel === 'Great').length
-  const gameDays = entries.filter(e => e.activity_type === 'Game').length
+  const sorenessCount = entries.filter(e => e.body_feel_before === 'Sore' || e.body_feel_before === 'Hurt').length
+  const greatDays = entries.filter(e => e.body_feel_before === 'Great').length
 
   // Insight 1: Training volume
-  if (totalMinutes >= 600) {
-    insights.push(`🔥 Incredible work this month — you put in ${totalMinutes} minutes of training. That kind of commitment is how champions are made!`)
-  } else if (totalMinutes >= 300) {
-    insights.push(`💪 Solid month! You trained for ${totalMinutes} minutes total. Keep building on that consistency.`)
+  if (total >= 600) {
+    insights.push(`🔥 Incredible work this month — you put in ${total} minutes of training. That kind of commitment is how champions are made!`)
+  } else if (total >= 300) {
+    insights.push(`💪 Solid month! You trained for ${total} minutes total. Keep building on that consistency.`)
   } else {
-    insights.push(`📈 You logged ${totalMinutes} minutes this month. Every session counts — even small ones add up over time!`)
+    insights.push(`📈 You logged ${total} minutes this month. Every session counts — even small ones add up over time!`)
   }
 
   // Insight 2: Effort & confidence
@@ -40,20 +42,20 @@ export function generateMonthlyInsights(entries: JournalEntry[]): string[] {
     insights.push(`⚠️ ${sorenessCount} days of soreness or discomfort this month. It might be worth talking to your coach about recovery — rest is part of training too!`)
   }
 
-  if (gameDays > 0) {
-    insights.push(`🏆 You played in ${gameDays} game${gameDays > 1 ? 's' : ''} this month. Game experience is irreplaceable — great job competing!`)
-  }
-
   return insights.slice(0, 3)
 }
 
-export function generateYearlyInsights(entries: JournalEntry[]): string[] {
+export function generateYearlyInsights(
+  entries: JournalEntry[],
+  totalMinutes?: number,
+  sportsCount?: number,
+): string[] {
   if (!entries.length) return ["No entries this year yet. Start logging your training!"]
 
   const insights: string[] = []
-  const totalMinutes = entries.reduce((s, e) => s + e.minutes, 0)
-  const hours = Math.floor(totalMinutes / 60)
-  const sports = new Set(entries.map(e => e.sport)).size
+  const total = totalMinutes ?? entries.reduce((s, e) => s + (e.minutes ?? 0), 0)
+  const hours = Math.floor(total / 60)
+  const sports = sportsCount ?? new Set(entries.map(e => e.sport).filter(Boolean)).size
 
   if (hours >= 100) {
     insights.push(`🏅 You trained for over ${hours} hours this year — that's elite-level dedication!`)

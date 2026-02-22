@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { calcStreak, currentWeekMonday, currentWeekSunday, todayLocal, formatDisplayDate } from '@/lib/dates'
 import { signOut } from '@/lib/actions'
 import { SwitchAthleteButton } from '@/components/SwitchAthleteButton'
-import type { JournalEntry } from '@/types'
 
 const sportEmoji: Record<string, string> = {
   Basketball: '🏀', Football: '🏈', Baseball: '⚾', Soccer: '⚽', Hockey: '🏒',
@@ -18,25 +17,45 @@ export default async function HomePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const [profileRes, recentRes, weekRes] = await Promise.all([
+  const today = todayLocal()
+
+  const [profileRes, recentRes, weekRes, allDatesRes] = await Promise.all([
     supabase.from('athlete_profile').select('*').eq('user_id', user.id).single(),
-    supabase.from('journal_entries').select('*').eq('user_id', user.id)
-      .order('entry_date', { ascending: false }).limit(7),
-    supabase.from('journal_entries').select('entry_date, minutes').eq('user_id', user.id)
-      .gte('entry_date', currentWeekMonday()).lte('entry_date', currentWeekSunday()),
+    // Join entry_sports so we can show sport emoji and total minutes
+    supabase.from('journal_entries')
+      .select('id, entry_date, entry_sports(sport, minutes)')
+      .eq('user_id', user.id)
+      .order('entry_date', { ascending: false })
+      .limit(7),
+    // Weekly minutes: sum all sports for entries this week
+    supabase.from('journal_entries')
+      .select('entry_date, entry_sports(minutes)')
+      .eq('user_id', user.id)
+      .gte('entry_date', currentWeekMonday())
+      .lte('entry_date', currentWeekSunday()),
+    supabase.from('journal_entries').select('entry_date').eq('user_id', user.id),
   ])
 
   const profile = profileRes.data
-  const entries: JournalEntry[] = recentRes.data || []
-  const weekEntries = weekRes.data || []
 
-  const allDatesRes = await supabase
-    .from('journal_entries').select('entry_date').eq('user_id', user.id)
+  type EntryRaw = {
+    id: string
+    entry_date: string
+    entry_sports: { sport: string; minutes: number }[] | null
+  }
+  const entries = (recentRes.data || []) as EntryRaw[]
+
+  type WeekRaw = {
+    entry_date: string
+    entry_sports: { minutes: number }[] | null
+  }
+  const weekEntries = (weekRes.data || []) as WeekRaw[]
+  const weekMins = weekEntries.reduce((sum, e) => {
+    return sum + (e.entry_sports || []).reduce((s, es) => s + es.minutes, 0)
+  }, 0)
+
   const allDates = (allDatesRes.data || []).map(e => e.entry_date)
-
   const streak = calcStreak(allDates)
-  const weekMins = weekEntries.reduce((s, e) => s + e.minutes, 0)
-  const today = todayLocal()
   const todayEntry = entries.find(e => e.entry_date === today)
 
   return (
@@ -79,19 +98,23 @@ export default async function HomePage() {
             <div className="empty-state-text">No entries yet. Log your first session!</div>
           </div>
         ) : (
-          entries.map(entry => (
-            <Link key={entry.id} href={`/log?date=${entry.entry_date}`} className="entry-item">
-              <div className="entry-dot">{sportEmoji[entry.sport] || '🏅'}</div>
-              <div className="entry-meta">
-                <div className="entry-title">{entry.sport} · {entry.activity_type}</div>
-                <div className="entry-sub">{formatDisplayDate(entry.entry_date)}</div>
-              </div>
-              <div className="entry-right">
-                <div className="entry-mins">{entry.minutes}</div>
-                <div className="entry-mins-label">min</div>
-              </div>
-            </Link>
-          ))
+          entries.map(entry => {
+            const primarySport = entry.entry_sports?.[0]?.sport || 'Other'
+            const totalMins = (entry.entry_sports || []).reduce((s, es) => s + es.minutes, 0)
+            return (
+              <Link key={entry.id} href={`/log?date=${entry.entry_date}`} className="entry-item">
+                <div className="entry-dot">{sportEmoji[primarySport] || '🏅'}</div>
+                <div className="entry-meta">
+                  <div className="entry-title">{primarySport}</div>
+                  <div className="entry-sub">{formatDisplayDate(entry.entry_date)}</div>
+                </div>
+                <div className="entry-right">
+                  <div className="entry-mins">{totalMins}</div>
+                  <div className="entry-mins-label">min</div>
+                </div>
+              </Link>
+            )
+          })
         )}
       </div>
 

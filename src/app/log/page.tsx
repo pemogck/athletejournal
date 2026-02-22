@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { todayLocal } from '@/lib/dates'
 import { LogForm } from './LogForm'
-import type { JournalEntry } from '@/types'
+import type { EntrySport, JournalEntry } from '@/types'
 
 interface Props {
   searchParams: Promise<{ date?: string }>
@@ -32,5 +32,23 @@ export default async function LogPage({ searchParams }: Props) {
     .eq('user_id', user.id)
     .single()
 
-  return <LogForm date={date} entry={entry as JournalEntry | null} defaultSport={profile?.favorite_sport} />
+  // Fetch existing sports for this entry (if editing)
+  let entrySports: EntrySport[] = []
+  if (entry?.id) {
+    const { data: sports } = await supabase
+      .from('entry_sports')
+      .select('sport, minutes')
+      .eq('entry_id', entry.id)
+      .order('created_at')
+    entrySports = (sports || []) as EntrySport[]
+  }
+
+  return (
+    <LogForm
+      date={date}
+      entry={entry as JournalEntry | null}
+      defaultSport={profile?.favorite_sport}
+      entrySports={entrySports}
+    />
+  )
 }

@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { longestStreak, monthLabel, nextDay } from '@/lib/dates'
+import { longestStreak, monthLabel } from '@/lib/dates'
 import { generateMonthlyInsights } from '@/lib/insights'
 import { MonthlyReflectionForm } from './MonthlyReflectionForm'
 import Link from 'next/link'
-import type { JournalEntry } from '@/types'
+import type { JournalEntry, EntrySport } from '@/types'
 
 interface Props {
   searchParams: Promise<{ month?: string }>
@@ -27,6 +27,8 @@ function isFuture(m: string) {
   return m >= now
 }
 
+type EntryWithSports = JournalEntry & { entry_sports: EntrySport[] }
+
 export default async function MonthlySummaryPage({ searchParams }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -40,36 +42,41 @@ export default async function MonthlySummaryPage({ searchParams }: Props) {
   const endDate = new Date(y, mo, 0).toISOString().slice(0, 10)
 
   const [entriesRes, reflectionRes] = await Promise.all([
-    supabase.from('journal_entries').select('*').eq('user_id', user.id)
-      .gte('entry_date', startDate).lte('entry_date', endDate)
+    supabase.from('journal_entries')
+      .select('*, entry_sports(sport, minutes)')
+      .eq('user_id', user.id)
+      .gte('entry_date', startDate)
+      .lte('entry_date', endDate)
       .order('entry_date'),
     supabase.from('monthly_reflections').select('*').eq('user_id', user.id).eq('month', month).maybeSingle(),
   ])
 
-  const entries: JournalEntry[] = entriesRes.data || []
+  const entries = (entriesRes.data || []) as EntryWithSports[]
   const reflection = reflectionRes.data
 
-  const totalMins = entries.reduce((s, e) => s + e.minutes, 0)
+  // Compute stats from entry_sports (handles multi-sport entries correctly)
+  const totalMins = entries.reduce((s, e) =>
+    s + (e.entry_sports || []).reduce((es, sp) => es + sp.minutes, 0), 0)
   const daysLogged = new Set(entries.map(e => e.entry_date)).size
   const streak = longestStreak(entries.map(e => e.entry_date))
   const avgEffort = entries.length ? entries.reduce((s, e) => s + e.effort, 0) / entries.length : 0
   const avgConf = entries.length ? entries.reduce((s, e) => s + e.confidence, 0) / entries.length : 0
-  const sorenessCount = entries.filter(e => e.body_feel === 'Sore' || e.body_feel === 'Hurt').length
-  const gameCount = entries.filter(e => e.activity_type === 'Game').length
-  const practiceCount = entries.filter(e => e.activity_type === 'Practice').length
+  const sorenessCount = entries.filter(e => e.body_feel_before === 'Sore' || e.body_feel_before === 'Hurt').length
 
-  // Main sport (most minutes, tie-breaker: most entries)
+  // Main sport: most minutes across all entry_sports, tie-breaker: count
   const sportMap: Record<string, { mins: number; count: number }> = {}
   for (const e of entries) {
-    if (!sportMap[e.sport]) sportMap[e.sport] = { mins: 0, count: 0 }
-    sportMap[e.sport].mins += e.minutes
-    sportMap[e.sport].count++
+    for (const sp of e.entry_sports || []) {
+      if (!sportMap[sp.sport]) sportMap[sp.sport] = { mins: 0, count: 0 }
+      sportMap[sp.sport].mins += sp.minutes
+      sportMap[sp.sport].count++
+    }
   }
   const mainSport = Object.entries(sportMap).sort((a, b) =>
     b[1].mins !== a[1].mins ? b[1].mins - a[1].mins : b[1].count - a[1].count
   )[0]?.[0] ?? '—'
 
-  const insights = generateMonthlyInsights(entries)
+  const insights = generateMonthlyInsights(entries, totalMins)
   const prev = prevMonth(month)
   const next = nextMonth(month)
 
@@ -130,17 +137,6 @@ export default async function MonthlySummaryPage({ searchParams }: Props) {
             <div className="stat-card">
               <div className="card-label">💪 Avg Conf.</div>
               <div className="card-value" style={{ fontSize: 32 }}>{avgConf.toFixed(1)}<span className="card-unit">/5</span></div>
-            </div>
-          </div>
-
-          <div className="stats-row">
-            <div className="stat-card">
-              <div className="card-label">🏆 Games</div>
-              <div className="card-value" style={{ fontSize: 32 }}>{gameCount}</div>
-            </div>
-            <div className="stat-card">
-              <div className="card-label">🏋️ Practices</div>
-              <div className="card-value" style={{ fontSize: 32 }}>{practiceCount}</div>
             </div>
           </div>
 

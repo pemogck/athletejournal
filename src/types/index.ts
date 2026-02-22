@@ -18,16 +18,6 @@ export type Sport =
   | 'Ski/Snowboard'
   | 'Other'
 
-export type ActivityType =
-  | 'Practice'
-  | 'Game'
-  | 'Skills'
-  | 'Strength'
-  | 'Conditioning'
-  | 'Recovery'
-  | 'Film/Study'
-  | 'Other'
-
 export interface AthleteProfile {
   id: string
   user_id: string
@@ -37,21 +27,31 @@ export interface AthleteProfile {
   created_at: string
 }
 
+export interface EntrySport {
+  id?: string
+  entry_id?: string
+  sport: string
+  minutes: number
+}
+
 export interface JournalEntry {
   id: string
   user_id: string
   entry_date: string // YYYY-MM-DD
-  sport: Sport
-  activity_type: ActivityType
-  minutes: number
-  effort: number // 1-5
-  confidence: number // 1-5
-  body_feel: BodyFeel
+  sport?: Sport | null      // nullable after migration (stored in entry_sports)
+  activity_type?: string | null
+  minutes?: number | null   // nullable after migration (stored in entry_sports)
+  effort: number            // 1-5
+  confidence: number        // 1-5
+  energy: number | null     // 1-5, null for entries before migration
+  body_feel_before: BodyFeel
+  body_feel_after: BodyFeel | null
   win_today: string
   lesson_today: string
   tomorrow_focus: string
   created_at: string
   updated_at: string
+  entry_sports?: EntrySport[] // populated when joined
 }
 
 export interface MonthlyReflection {
@@ -68,11 +68,6 @@ export const SPORTS: Sport[] = [
   'Basketball', 'Football', 'Baseball', 'Soccer', 'Hockey', 'Lacrosse',
   'Softball', 'Volleyball', 'Tennis', 'Golf', 'Track & Field', 'Swimming',
   'Wrestling', 'Gymnastics', 'Ski/Snowboard', 'Other',
-]
-
-export const ACTIVITY_TYPES: ActivityType[] = [
-  'Practice', 'Game', 'Skills', 'Strength', 'Conditioning', 'Recovery',
-  'Film/Study', 'Other',
 ]
 
 export const BODY_FEELS: BodyFeel[] = ['Great', 'OK', 'Sore', 'Hurt']
