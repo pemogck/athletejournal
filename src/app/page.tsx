@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { calcStreak, currentWeekMonday, currentWeekSunday, todayLocal, formatDisplayDate } from '@/lib/dates'
 import { signOut } from '@/lib/actions'
+import { SwitchAthleteButton } from '@/components/SwitchAthleteButton'
 import type { JournalEntry } from '@/types'
 
 const sportEmoji: Record<string, string> = {
@@ -47,9 +48,12 @@ export default async function HomePage() {
           </div>
           <div className="page-subtitle">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
         </div>
-        <form action={signOut}>
-          <button type="submit" className="btn btn-secondary btn-sm">Sign Out</button>
-        </form>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <SwitchAthleteButton firstName={profile?.first_name || ''} />
+          <form action={signOut}>
+            <button type="submit" className="btn btn-secondary btn-sm">Sign Out</button>
+          </form>
+        </div>
       </div>
 
       <Link href={`/log?date=${today}`} className="btn-cta">

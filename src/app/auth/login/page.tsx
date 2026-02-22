@@ -1,12 +1,21 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signIn } from '@/lib/actions'
 
 export default function LoginPage() {
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+  const [lastAthlete, setLastAthlete] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const isSwitching = searchParams.get('switch') === 'true'
+
+  useEffect(() => {
+    const stored = localStorage.getItem('lastAthlete')
+    if (stored) setLastAthlete(stored)
+  }, [])
 
   async function handleSubmit(formData: FormData) {
     start(async () => {
@@ -19,6 +28,17 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="auth-logo">Athlete<br />Journal</div>
       <div className="auth-tagline">Track your training. Grow every day.</div>
+
+      {isSwitching && (
+        <div className="msg-info" style={{ marginBottom: 16, textAlign: 'center' }}>
+          <div>👋 Switch athlete - sign in below</div>
+          {lastAthlete && (
+            <div style={{ marginTop: 6, opacity: 0.8, fontSize: 14 }}>
+              Last signed in: <strong>{lastAthlete}</strong>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="auth-card">
         <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 22, marginBottom: 20, letterSpacing: '0.04em' }}>SIGN IN</div>

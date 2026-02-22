@@ -387,6 +387,16 @@ body {
 }
 
 /* ── Error / Success messages ── */
+.msg-info {
+  background: rgba(100,160,255,0.1);
+  border: 1px solid rgba(100,160,255,0.3);
+  color: #7eb8ff;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
 .msg-error {
   background: rgba(255,68,68,0.1);
   border: 1px solid rgba(255,68,68,0.3);

@@ -45,6 +45,12 @@ export async function signOut() {
   redirect('/auth/login')
 }
 
+export async function switchAthlete() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/auth/login?switch=true')
+}
+
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
 export async function updateProfile(formData: FormData) {
