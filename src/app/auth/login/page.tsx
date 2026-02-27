@@ -56,6 +56,9 @@ export default function LoginPage() {
             {pending ? <><span className="spinner" /> Signing in…</> : 'Sign In'}
           </button>
         </form>
+        <div className="auth-footer" style={{ marginBottom: 8 }}>
+          <Link href="/auth/forgot-password">Forgot password?</Link>
+        </div>
         <div className="auth-footer">
           New here? <Link href="/auth/signup">Create account</Link>
         </div>
